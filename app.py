@@ -306,42 +306,40 @@ percent_exito = float(st.session_state.percent_exito or 0.0)
 faturamento = st.session_state.faturamento
 
 # ---------------------------
-# FUNCTIONS TABLE (Composição da equipe) — CORRIGIDO
+# FUNCTIONS TABLE (Composição da equipe) — FIX DEFINITIVO
 # ---------------------------
 st.markdown("### 👥 Composição da equipe (edite livremente)")
 
-# DataFrame base para inicialização do editor
-def get_base_funcoes_df():
+def _base_funcoes_df():
     df = pd.DataFrame(DEFAULT_FUNCOES)
     if "Nome participante" not in df.columns:
         df.insert(0, "Nome participante", "")
     return df[["Nome participante", "Função", "Grupo", "Existe", "Peso"]]
 
-# Inicializa o estado do editor apenas uma vez
-if "editor" not in st.session_state:
-    st.session_state["editor"] = get_base_funcoes_df()
+# Estado persistente do DataFrame (NÃO usa a mesma key do widget)
+if "df_funcoes_editor" not in st.session_state:
+    st.session_state.df_funcoes_editor = _base_funcoes_df()
 
-# Se o preset mudou, aplica o padrão de EXISTE sobre o DF atual
+# Ao trocar preset: atualizar somente "Existe" preservando nomes já digitados
 if preset_changed and preset_choice in PRESET_EXISTS:
-    df_ed = st.session_state["editor"].copy()
+    df_ed = st.session_state.df_funcoes_editor.copy()
     exists_list = PRESET_EXISTS[preset_choice]
     base_len = min(len(exists_list), len(df_ed))
     for i in range(base_len):
         df_ed.loc[i, "Existe"] = int(exists_list[i])
-    st.session_state["editor"] = df_ed
+    st.session_state.df_funcoes_editor = df_ed
 
-# Desenha o editor usando APENAS o DF do session_state["editor"]
+# Renderiza editor e persiste imediatamente (chave diferente do widget)
 edited = st.data_editor(
-    st.session_state["editor"],
+    st.session_state.df_funcoes_editor,
     num_rows="dynamic",
     key="editor",
     use_container_width=True
 )
-# Após o widget, o Streamlit já atualiza st.session_state["editor"] sozinho.
-# Usamos 'edited' apenas para os cálculos.
-df_funcoes = edited.copy()
+st.session_state.df_funcoes_editor = edited
 
-# Normalização para cálculo (NÃO escrevemos de volta no editor!)
+# DF de trabalho para cálculo (normalizado)
+df_funcoes = edited.copy()
 for c in ["Nome participante", "Função", "Grupo", "Existe", "Peso"]:
     if c not in df_funcoes.columns:
         df_funcoes[c] = 1 if c in ["Existe", "Peso"] else ""
@@ -476,6 +474,8 @@ with colx3:
     if st.button("🔁 Resetar tabela para padrão"):
         if "editor" in st.session_state:
             del st.session_state["editor"]
+        if "df_funcoes_editor" in st.session_state:
+            del st.session_state["df_funcoes_editor"]
         st.experimental_rerun()
 
 # ---------------------------
