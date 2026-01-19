@@ -34,7 +34,6 @@ DEFAULT_PRESETS = {
     "B - 2 Exec + 1 Ret":  [10, 10, 50, 20, 0, 10, 0],
     "C - 3 Exec + 1 Ret":  [10, 10, 40, 20, 10, 10, 0],
     "D - 2 Exec + 2 Ret":  [10, 10, 45, 20, 0, 10, 5],
-    "E - Completo":        [10, 10, 45, 20, 10, 12, 3],
     "Auto (Dinâmico)":     None
 }
 
@@ -44,7 +43,6 @@ PRESET_EXISTS = {
     "B - 2 Exec + 1 Ret": [1, 1, 1, 1, 0, 1, 0],
     "C - 3 Exec + 1 Ret": [1, 1, 1, 1, 1, 1, 0],
     "D - 2 Exec + 2 Ret": [1, 1, 1, 1, 0, 1, 1],
-    "E - Completo":       [1, 1, 1, 1, 1, 1, 1],
 }
 
 DEFAULT_POOLS = {"COM": 20.0, "EXEC": 60.0, "RET": 20.0}
@@ -603,3 +601,4 @@ else:
 
 st.markdown("---")
 st.caption("App local — arquivos gerados na pasta do app (presets.json e history_projects.csv).")
+
