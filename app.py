@@ -306,7 +306,7 @@ percent_exito = float(st.session_state.percent_exito or 0.0)
 faturamento = st.session_state.faturamento
 
 # ---------------------------
-# FUNCTIONS TABLE (Composição da equipe) — FIX DEFINITIVO
+# FUNCTIONS TABLE (Composição da equipe) — usando df_funcoes_editor + editor_v2
 # ---------------------------
 st.markdown("### 👥 Composição da equipe (edite livremente)")
 
@@ -316,11 +316,11 @@ def _base_funcoes_df():
         df.insert(0, "Nome participante", "")
     return df[["Nome participante", "Função", "Grupo", "Existe", "Peso"]]
 
-# Estado persistente do DataFrame (NÃO usa a mesma key do widget)
+# estado persistente do DF (não é a key do widget)
 if "df_funcoes_editor" not in st.session_state:
     st.session_state.df_funcoes_editor = _base_funcoes_df()
 
-# Ao trocar preset: atualizar somente "Existe" preservando nomes já digitados
+# ao trocar preset, atualiza apenas "Existe"
 if preset_changed and preset_choice in PRESET_EXISTS:
     df_ed = st.session_state.df_funcoes_editor.copy()
     exists_list = PRESET_EXISTS[preset_choice]
@@ -329,16 +329,17 @@ if preset_changed and preset_choice in PRESET_EXISTS:
         df_ed.loc[i, "Existe"] = int(exists_list[i])
     st.session_state.df_funcoes_editor = df_ed
 
-# Renderiza editor e persiste imediatamente (chave diferente do widget)
+# widget com key NOVA (evita conflito com estado antigo)
 edited = st.data_editor(
     st.session_state.df_funcoes_editor,
     num_rows="dynamic",
-    key="editor",
+    key="editor_v2",
     use_container_width=True
 )
+# persiste o DF que saiu do widget
 st.session_state.df_funcoes_editor = edited
 
-# DF de trabalho para cálculo (normalizado)
+# DF para cálculo
 df_funcoes = edited.copy()
 for c in ["Nome participante", "Função", "Grupo", "Existe", "Peso"]:
     if c not in df_funcoes.columns:
@@ -472,8 +473,8 @@ with colx2:
 
 with colx3:
     if st.button("🔁 Resetar tabela para padrão"):
-        if "editor" in st.session_state:
-            del st.session_state["editor"]
+        if "editor_v2" in st.session_state:
+            del st.session_state["editor_v2"]
         if "df_funcoes_editor" in st.session_state:
             del st.session_state["df_funcoes_editor"]
         st.experimental_rerun()
