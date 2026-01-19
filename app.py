@@ -38,7 +38,7 @@ DEFAULT_PRESETS = {
     "Auto (Dinâmico)":     None
 }
 
-# mapa de quais funções "existem" em cada preset
+# quais funções "existem" em cada preset (mesma ordem de DEFAULT_FUNCOES)
 PRESET_EXISTS = {
     "A - Simples":        [1, 1, 1, 0, 0, 1, 0],
     "B - 2 Exec + 1 Ret": [1, 1, 1, 1, 0, 1, 0],
@@ -90,9 +90,8 @@ def recalc_faturamento():
 # ---------------------------
 def load_presets():
     """
-    Carrega presets do arquivo, mas SEMPRE sobrescreve os padrões (A, B, C, D, E, Auto)
-    pelos valores do código (DEFAULT_PRESETS).
-    Assim, mudanças no código têm efeito mesmo com presets.json antigo.
+    Carrega presets do arquivo, mas SEMPRE sobrescreve os padrões
+    (A, B, C, D, E, Auto) pelos valores do código (DEFAULT_PRESETS).
     """
     if os.path.exists(PRESETS_FILE):
         try:
@@ -103,7 +102,6 @@ def load_presets():
     else:
         presets = {}
 
-    # sobrescreve SEMPRE os padrões
     for k, v in DEFAULT_PRESETS.items():
         presets[k] = v
 
@@ -206,17 +204,17 @@ preset_choice = st.sidebar.selectbox(
     index=preset_names.index("A - Simples") if "A - Simples" in preset_names else 0
 )
 
-# detectar mudança de preset para aplicar EXISTE automaticamente
+# detectar mudança de preset
 if "last_preset_choice" not in st.session_state:
     st.session_state.last_preset_choice = preset_choice
 preset_changed = preset_choice != st.session_state.last_preset_choice
 st.session_state.last_preset_choice = preset_choice
 
 st.sidebar.markdown("**Pools (Total 100%)** — alterar se quiser")
-col1, col2, col3 = st.sidebar.columns(3)
-pool_COM = col1.number_input("COM (%)", value=DEFAULT_POOLS["COM"], min_value=0.0, max_value=100.0, step=1.0)
-pool_EXEC = col2.number_input("EXEC (%)", value=DEFAULT_POOLS["EXEC"], min_value=0.0, max_value=100.0, step=1.0)
-pool_RET = col3.number_input("RET (%)", value=DEFAULT_POOLS["RET"], min_value=0.0, max_value=100.0, step=1.0)
+col1_sidebar, col2_sidebar, col3_sidebar = st.sidebar.columns(3)
+pool_COM = col1_sidebar.number_input("COM (%)", value=DEFAULT_POOLS["COM"], min_value=0.0, max_value=100.0, step=1.0)
+pool_EXEC = col2_sidebar.number_input("EXEC (%)", value=DEFAULT_POOLS["EXEC"], min_value=0.0, max_value=100.0, step=1.0)
+pool_RET = col3_sidebar.number_input("RET (%)", value=DEFAULT_POOLS["RET"], min_value=0.0, max_value=100.0, step=1.0)
 
 if abs((pool_COM + pool_EXEC + pool_RET) - 100.0) > 0.001:
     st.sidebar.warning("Os pools não somam 100%. Ajuste para totalizar 100% se desejar.")
@@ -232,9 +230,9 @@ with st.sidebar.expander("Criar / Atualizar preset"):
         for i in range(base_len)
     ]
     weights = []
-    cols = st.columns([3, 1])
+    cols_preset = st.columns([3, 1])
     for i, f in enumerate([x["Função"] for x in DEFAULT_FUNCOES]):
-        w = cols[0].number_input(
+        w = cols_preset[0].number_input(
             f"{f} (%)",
             min_value=0.0,
             max_value=100.0,
@@ -308,35 +306,50 @@ percent_exito = float(st.session_state.percent_exito or 0.0)
 faturamento = st.session_state.faturamento
 
 # ---------------------------
-# FUNCTIONS TABLE (editable with Nome participante)
+# FUNCTIONS TABLE (Composição da equipe) — CORRIGIDO
 # ---------------------------
-if "df_funcoes" not in st.session_state:
-    st.session_state.df_funcoes = pd.DataFrame(DEFAULT_FUNCOES)
-
-if "Nome participante" not in st.session_state.df_funcoes.columns:
-    st.session_state.df_funcoes.insert(0, "Nome participante", "")
-
-# APLICA EXISTE DO PRESET QUANDO O PRESET É ALTERADO
-if preset_changed and preset_choice in PRESET_EXISTS:
-    exists_list = PRESET_EXISTS[preset_choice]
-    df_tmp = st.session_state.df_funcoes
-    base_len = min(len(exists_list), len(df_tmp))
-    for i in range(base_len):
-        df_tmp.loc[i, "Existe"] = int(exists_list[i])
-    st.session_state.df_funcoes = df_tmp
-
 st.markdown("### 👥 Composição da equipe (edite livremente)")
-edited = st.data_editor(st.session_state.df_funcoes, num_rows="dynamic", key="editor")
 
+# DataFrame base para inicialização do editor
+def get_base_funcoes_df():
+    df = pd.DataFrame(DEFAULT_FUNCOES)
+    if "Nome participante" not in df.columns:
+        df.insert(0, "Nome participante", "")
+    return df[["Nome participante", "Função", "Grupo", "Existe", "Peso"]]
+
+# Inicializa o estado do editor apenas uma vez
+if "editor" not in st.session_state:
+    st.session_state["editor"] = get_base_funcoes_df()
+
+# Se o preset mudou, aplica o padrão de EXISTE sobre o DF atual
+if preset_changed and preset_choice in PRESET_EXISTS:
+    df_ed = st.session_state["editor"].copy()
+    exists_list = PRESET_EXISTS[preset_choice]
+    base_len = min(len(exists_list), len(df_ed))
+    for i in range(base_len):
+        df_ed.loc[i, "Existe"] = int(exists_list[i])
+    st.session_state["editor"] = df_ed
+
+# Desenha o editor usando APENAS o DF do session_state["editor"]
+edited = st.data_editor(
+    st.session_state["editor"],
+    num_rows="dynamic",
+    key="editor",
+    use_container_width=True
+)
+# Após o widget, o Streamlit já atualiza st.session_state["editor"] sozinho.
+# Usamos 'edited' apenas para os cálculos.
 df_funcoes = edited.copy()
+
+# Normalização para cálculo (NÃO escrevemos de volta no editor!)
 for c in ["Nome participante", "Função", "Grupo", "Existe", "Peso"]:
     if c not in df_funcoes.columns:
         df_funcoes[c] = 1 if c in ["Existe", "Peso"] else ""
+
 df_funcoes["Grupo"] = df_funcoes["Grupo"].astype(str).str.upper().replace({"EXECUTOR": "EXEC"})
 df_funcoes["Grupo"] = df_funcoes["Grupo"].replace({"EXEC": "EXEC", "RET": "RET", "COM": "COM", "COMERCIAL": "COM"})
-df_funcoes["Existe"] = df_funcoes["Existe"].astype(int).clip(0, 1)
+df_funcoes["Existe"] = pd.to_numeric(df_funcoes["Existe"], errors="coerce").fillna(0).astype(int).clip(0, 1)
 df_funcoes["Peso"] = pd.to_numeric(df_funcoes["Peso"], errors="coerce").fillna(0).astype(float)
-st.session_state.df_funcoes = df_funcoes
 
 # ---------------------------
 # CALCULATION: apply preset or auto
@@ -370,10 +383,10 @@ df_result = df_result[["Nome participante", "Função", "Grupo", "Existe", "Peso
 # DISPLAY RESULTS
 # ---------------------------
 st.markdown("---")
-col1, col2, col3 = st.columns(3)
-col1.metric("Faturamento", fmt_brl(faturamento))
-col2.metric("Comissão total (%)", f"{comissao_pct:.2f}%")
-col3.metric("Valor comissão (R$)", fmt_brl(comissao_total_val))
+colm1, colm2, colm3 = st.columns(3)
+colm1.metric("Faturamento", fmt_brl(faturamento))
+colm2.metric("Comissão total (%)", f"{comissao_pct:.2f}%")
+colm3.metric("Valor comissão (R$)", fmt_brl(comissao_total_val))
 
 st.write(
     f"**Preset:** {preset_choice}    •    "
@@ -461,7 +474,6 @@ with colx2:
 
 with colx3:
     if st.button("🔁 Resetar tabela para padrão"):
-        st.session_state.df_funcoes = pd.DataFrame(DEFAULT_FUNCOES)
         if "editor" in st.session_state:
             del st.session_state["editor"]
         st.experimental_rerun()
@@ -505,7 +517,6 @@ else:
 # ---------------------------
 # EXPORTAR EXCEL A PARTIR DO HISTÓRICO
 # ---------------------------
-
 st.markdown("## 📦 Exportar Excel de projeto salvo do histórico")
 
 hist_export = load_history()
