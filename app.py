@@ -28,11 +28,12 @@ DEFAULT_FUNCOES = [
 ]
 
 DEFAULT_PRESETS = {
-    "A - Simples":         [10, 10, 65, 0, 0, 15, 0],
-    "B - 2 Exec + 1 Ret":  [10, 10, 55, 20, 0, 15, 0],
-    "C - 3 Exec + 1 Ret":  [10, 10, 50, 20, 10, 10, 0],
-    "D - 2 Exec + 2 Ret":  [10, 10, 50, 20, 0, 15, 5],
-    "E - Completo":        [10, 10, 45, 20, 10, 12, 3],
+    # Vendedor, Coordenador, Executor 1, Executor 2, Executor 3, Retificador 1, Retificador 2
+    "A - Simples":         [10, 10, 70, 0, 0, 10, 0],
+    "B - 2 Exec + 1 Ret":  [10, 10, 50, 20, 0, 10, 0],
+    "C - 3 Exec + 1 Ret":  [10, 10, 40, 20, 10, 10, 0],
+    "D - 2 Exec + 2 Ret":  [10, 10, 45, 20, 0, 10, 5],
+    "E - Completo":        [10, 10, 45, 20, 10, 12, 3],  # deixei como estava, já que você não mandou novo modelo
     "Auto (Dinâmico)":     None
 }
 
@@ -561,4 +562,5 @@ else:
 
 st.markdown("---")
 st.caption("App local — arquivos gerados na pasta do app (presets.json e history_projects.csv).")
+
 
