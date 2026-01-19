@@ -466,5 +466,99 @@ else:
         fig_rank.update_layout(separators=",.")
         st.plotly_chart(fig_rank, use_container_width=True)
 
+# ---------------------------
+# EXPORTAR EXCEL A PARTIR DO HISTÓRICO
+# ---------------------------
+
+st.markdown("## 📦 Exportar Excel de projeto salvo do histórico")
+
+hist_export = load_history()
+if hist_export.empty:
+    st.info("Nenhum projeto salvo no histórico para exportar.")
+else:
+    # montar labels para escolha do projeto
+    labels = []
+    idx_map = {}
+    for idx, row in hist_export.iterrows():
+        ts = str(row.get("timestamp", ""))[:19]
+        nome = str(row.get("project_name", "") or "")
+        cli = str(row.get("cliente", "") or "")
+        label = f"{idx} - {ts} - {nome} - {cli}"
+        labels.append(label)
+        idx_map[label] = idx
+
+    selected_label = st.selectbox(
+        "Selecione o projeto do histórico para gerar o Excel",
+        options=[""] + labels,
+        index=0
+    )
+
+    if selected_label:
+        selected_idx = idx_map[selected_label]
+        row = hist_export.loc[selected_idx]
+
+        # monta meta para o relatório
+        meta_hist = {
+            "project_name": row.get("project_name", ""),
+            "date": row.get("timestamp", ""),
+            "faturamento": row.get("faturamento", 0.0),
+            "comissao_pct": row.get("comissao_pct", 0.0),
+            "data_faturamento": row.get("data_faturamento", ""),
+            "cliente": row.get("cliente", ""),
+            "cnpj": row.get("cnpj", ""),
+            "servico": row.get("servico", ""),
+            "forma_pagamento": row.get("forma_pagamento", ""),
+            "beneficio_cliente": row.get("beneficio_cliente", 0.0),
+            "percent_exito": row.get("percent_exito", 0.0),
+        }
+
+        # reconstrói df_result a partir das colunas fun_* gravadas no histórico
+        participantes = []
+        for col in hist_export.columns:
+            if col.startswith("fun_") and col.endswith("_participant"):
+                idx_fun = col.split("_")[1]   # ex: fun_0_participant -> "0"
+                nome_part = row.get(f"fun_{idx_fun}_participant", "")
+                funcao = row.get(f"fun_{idx_fun}_name", "")
+                pct = row.get(f"fun_{idx_fun}_pct", 0.0)
+                val = row.get(f"fun_{idx_fun}_val", 0.0)
+
+                # ignora linhas vazias
+                if (pd.isna(nome_part) or str(nome_part).strip() == "") and \
+                   (pd.isna(funcao) or str(funcao).strip() == ""):
+                    continue
+
+                participantes.append({
+                    "Nome participante": str(nome_part or ""),
+                    "Função": str(funcao or ""),
+                    "Grupo": "",
+                    "Existe": 1,
+                    "Peso": 0.0,
+                    "% Final": float(pct or 0.0),
+                    "% no Grupo": 0.0,
+                    "Valor (R$)": float(val or 0.0)
+                })
+
+        if participantes:
+            df_result_hist = pd.DataFrame(participantes)
+            # input mínimo para a aba INPUT do Excel
+            df_input_hist = df_result_hist[["Nome participante", "Função", "Grupo", "Existe", "Peso"]].copy()
+
+            excel_hist_bytes = to_excel_bytes(
+                df_result_hist,
+                df_input_hist,
+                row.get("preset", ""),
+                meta_hist
+            )
+
+            st.download_button(
+                "Baixar Excel do projeto selecionado",
+                data=excel_hist_bytes,
+                file_name=f"comissoes_hist_{selected_idx}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+        else:
+            st.info("Este registro de histórico não possui dados de participantes para gerar o Excel.")
+
 st.markdown("---")
 st.caption("App local — arquivos gerados na pasta do app (presets.json e history_projects.csv).")
+
