@@ -37,6 +37,7 @@ DEFAULT_PRESETS = {
     "Auto (Dinâmico)":     None
 }
 
+
 DEFAULT_POOLS = {"COM": 20.0, "EXEC": 60.0, "RET": 20.0}
 
 # ---------------------------
@@ -562,5 +563,6 @@ else:
 
 st.markdown("---")
 st.caption("App local — arquivos gerados na pasta do app (presets.json e history_projects.csv).")
+
 
 
