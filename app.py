@@ -89,7 +89,7 @@ def recalc_faturamento():
 def load_presets():
     """
     Carrega presets do arquivo, mas SEMPRE sobrescreve os padrões
-    (A, B, C, D, E, Auto) pelos valores do código (DEFAULT_PRESETS).
+    (A, B, C, D, Auto) pelos valores do código (DEFAULT_PRESETS).
     """
     if os.path.exists(PRESETS_FILE):
         try:
@@ -100,8 +100,14 @@ def load_presets():
     else:
         presets = {}
 
+    # sobrescreve padrões do app
     for k, v in DEFAULT_PRESETS.items():
         presets[k] = v
+
+    # remove presets padrões que não existem mais (ex.: E - Completo)
+    for k in list(presets.keys()):
+        if k.startswith("E - Completo"):
+            presets.pop(k, None)
 
     return presets
 
@@ -195,6 +201,9 @@ recalc_faturamento()
 st.sidebar.header("Configurações")
 presets = load_presets()
 preset_names = list(presets.keys())
+
+# garantia: não listar "E - Completo" no selectbox
+preset_names = [p for p in preset_names if p != "E - Completo"]
 
 preset_choice = st.sidebar.selectbox(
     "Escolher Preset",
@@ -314,11 +323,9 @@ def _base_funcoes_df():
         df.insert(0, "Nome participante", "")
     return df[["Nome participante", "Função", "Grupo", "Existe", "Peso"]]
 
-# estado persistente do DF (não é a key do widget)
 if "df_funcoes_editor" not in st.session_state:
     st.session_state.df_funcoes_editor = _base_funcoes_df()
 
-# ao trocar preset, atualiza apenas "Existe"
 if preset_changed and preset_choice in PRESET_EXISTS:
     df_ed = st.session_state.df_funcoes_editor.copy()
     exists_list = PRESET_EXISTS[preset_choice]
@@ -338,7 +345,6 @@ with st.form("form_composicao_equipe"):
         st.session_state.df_funcoes_editor = edited_df
         st.success("Composição da equipe salva com sucesso.")
 
-# DF para cálculo SEM sobrescrever enquanto usuário digita
 df_funcoes = st.session_state.df_funcoes_editor.copy()
 for c in ["Nome participante", "Função", "Grupo", "Existe", "Peso"]:
     if c not in df_funcoes.columns:
@@ -601,4 +607,3 @@ else:
 
 st.markdown("---")
 st.caption("App local — arquivos gerados na pasta do app (presets.json e history_projects.csv).")
-
