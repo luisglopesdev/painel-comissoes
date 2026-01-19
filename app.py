@@ -306,7 +306,7 @@ percent_exito = float(st.session_state.percent_exito or 0.0)
 faturamento = st.session_state.faturamento
 
 # ---------------------------
-# FUNCTIONS TABLE (Composição da equipe) — usando df_funcoes_editor + editor_v2
+# FUNCTIONS TABLE (Composição da equipe) — COM FORM
 # ---------------------------
 st.markdown("### 👥 Composição da equipe (edite livremente)")
 
@@ -329,18 +329,19 @@ if preset_changed and preset_choice in PRESET_EXISTS:
         df_ed.loc[i, "Existe"] = int(exists_list[i])
     st.session_state.df_funcoes_editor = df_ed
 
-# widget com key NOVA (evita conflito com estado antigo)
-edited = st.data_editor(
-    st.session_state.df_funcoes_editor,
-    num_rows="dynamic",
-    key="editor_v2",
-    use_container_width=True
-)
-# persiste o DF que saiu do widget
-st.session_state.df_funcoes_editor = edited
+with st.form("form_composicao_equipe"):
+    edited_df = st.data_editor(
+        st.session_state.df_funcoes_editor,
+        num_rows="dynamic",
+        use_container_width=True
+    )
+    salvar_equipe = st.form_submit_button("Salvar composição da equipe")
+    if salvar_equipe:
+        st.session_state.df_funcoes_editor = edited_df
+        st.success("Composição da equipe salva com sucesso.")
 
-# DF para cálculo
-df_funcoes = edited.copy()
+# DF para cálculo SEM sobrescrever enquanto usuário digita
+df_funcoes = st.session_state.df_funcoes_editor.copy()
 for c in ["Nome participante", "Função", "Grupo", "Existe", "Peso"]:
     if c not in df_funcoes.columns:
         df_funcoes[c] = 1 if c in ["Existe", "Peso"] else ""
@@ -473,8 +474,6 @@ with colx2:
 
 with colx3:
     if st.button("🔁 Resetar tabela para padrão"):
-        if "editor_v2" in st.session_state:
-            del st.session_state["editor_v2"]
         if "df_funcoes_editor" in st.session_state:
             del st.session_state["df_funcoes_editor"]
         st.experimental_rerun()
