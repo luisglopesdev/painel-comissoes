@@ -27,16 +27,25 @@ DEFAULT_FUNCOES = [
     {"Função": "Retificador 2", "Grupo": "RET", "Existe": 0, "Peso": 1},
 ]
 
+# presets de percentuais (% Final) na ordem das funções acima
 DEFAULT_PRESETS = {
     # Vendedor, Coordenador, Executor 1, Executor 2, Executor 3, Retificador 1, Retificador 2
     "A - Simples":         [10, 10, 70, 0, 0, 10, 0],
     "B - 2 Exec + 1 Ret":  [10, 10, 50, 20, 0, 10, 0],
     "C - 3 Exec + 1 Ret":  [10, 10, 40, 20, 10, 10, 0],
     "D - 2 Exec + 2 Ret":  [10, 10, 45, 20, 0, 10, 5],
-    "E - Completo":        [10, 10, 45, 20, 10, 12, 3],  # deixei como estava, já que você não mandou novo modelo
+    "E - Completo":        [10, 10, 45, 20, 10, 12, 3],
     "Auto (Dinâmico)":     None
 }
 
+# mapa de quais funções "existem" em cada preset
+PRESET_EXISTS = {
+    "A - Simples":        [1, 1, 1, 0, 0, 1, 0],
+    "B - 2 Exec + 1 Ret": [1, 1, 1, 1, 0, 1, 0],
+    "C - 3 Exec + 1 Ret": [1, 1, 1, 1, 1, 1, 0],
+    "D - 2 Exec + 2 Ret": [1, 1, 1, 1, 0, 1, 1],
+    "E - Completo":       [1, 1, 1, 1, 1, 1, 1],
+}
 
 DEFAULT_POOLS = {"COM": 20.0, "EXEC": 60.0, "RET": 20.0}
 
@@ -80,18 +89,25 @@ def recalc_faturamento():
 # HELPERS: load/save presets & history
 # ---------------------------
 def load_presets():
+    """
+    Carrega presets do arquivo, mas SEMPRE sobrescreve os padrões (A, B, C, D, E, Auto)
+    pelos valores do código (DEFAULT_PRESETS).
+    Assim, mudanças no código têm efeito mesmo com presets.json antigo.
+    """
     if os.path.exists(PRESETS_FILE):
         try:
             with open(PRESETS_FILE, "r", encoding="utf-8") as f:
                 presets = json.load(f)
-            for k, v in DEFAULT_PRESETS.items():
-                if k not in presets:
-                    presets[k] = v
-            return presets
         except Exception:
-            return DEFAULT_PRESETS.copy()
+            presets = {}
     else:
-        return DEFAULT_PRESETS.copy()
+        presets = {}
+
+    # sobrescreve SEMPRE os padrões
+    for k, v in DEFAULT_PRESETS.items():
+        presets[k] = v
+
+    return presets
 
 def save_presets(presets):
     with open(PRESETS_FILE, "w", encoding="utf-8") as f:
@@ -183,11 +199,18 @@ recalc_faturamento()
 st.sidebar.header("Configurações")
 presets = load_presets()
 preset_names = list(presets.keys())
+
 preset_choice = st.sidebar.selectbox(
     "Escolher Preset",
     preset_names,
     index=preset_names.index("A - Simples") if "A - Simples" in preset_names else 0
 )
+
+# detectar mudança de preset para aplicar EXISTE automaticamente
+if "last_preset_choice" not in st.session_state:
+    st.session_state.last_preset_choice = preset_choice
+preset_changed = preset_choice != st.session_state.last_preset_choice
+st.session_state.last_preset_choice = preset_choice
 
 st.sidebar.markdown("**Pools (Total 100%)** — alterar se quiser")
 col1, col2, col3 = st.sidebar.columns(3)
@@ -293,6 +316,15 @@ if "df_funcoes" not in st.session_state:
 if "Nome participante" not in st.session_state.df_funcoes.columns:
     st.session_state.df_funcoes.insert(0, "Nome participante", "")
 
+# APLICA EXISTE DO PRESET QUANDO O PRESET É ALTERADO
+if preset_changed and preset_choice in PRESET_EXISTS:
+    exists_list = PRESET_EXISTS[preset_choice]
+    df_tmp = st.session_state.df_funcoes
+    base_len = min(len(exists_list), len(df_tmp))
+    for i in range(base_len):
+        df_tmp.loc[i, "Existe"] = int(exists_list[i])
+    st.session_state.df_funcoes = df_tmp
+
 st.markdown("### 👥 Composição da equipe (edite livremente)")
 edited = st.data_editor(st.session_state.df_funcoes, num_rows="dynamic", key="editor")
 
@@ -370,9 +402,9 @@ fig_bar = px.bar(df_result[df_result["Existe"] == 1].sort_values("Valor (R$)", a
                  x="Nome participante", y="Valor (R$)", title="Valor R$ por Participante", text="Valor (R$)")
 fig_bar.update_layout(xaxis_tickangle=-45, separators=",.")
 
-c1, c2 = st.columns([1, 1])
-c1.plotly_chart(fig_pie, use_container_width=True)
-c2.plotly_chart(fig_bar, use_container_width=True)
+c1_plot, c2_plot = st.columns([1, 1])
+c1_plot.plotly_chart(fig_pie, use_container_width=True)
+c2_plot.plotly_chart(fig_bar, use_container_width=True)
 
 # ---------------------------
 # EXPORT / SAVE / HISTORY
@@ -419,17 +451,19 @@ with colx2:
             "beneficio_cliente": beneficio_cliente,
             "percent_exito": percent_exito
         }
-        for i, row in df_result.reset_index().iterrows():
-            record[f"fun_{i}_participant"] = row["Nome participante"]
-            record[f"fun_{i}_name"] = row["Função"]
-            record[f"fun_{i}_pct"] = row["% Final"]
-            record[f"fun_{i}_val"] = row["Valor (R$)"]
+        for i, row_res in df_result.reset_index().iterrows():
+            record[f"fun_{i}_participant"] = row_res["Nome participante"]
+            record[f"fun_{i}_name"] = row_res["Função"]
+            record[f"fun_{i}_pct"] = row_res["% Final"]
+            record[f"fun_{i}_val"] = row_res["Valor (R$)"]
         append_history(record)
         st.success("Projeto salvo no histórico.")
 
 with colx3:
     if st.button("🔁 Resetar tabela para padrão"):
         st.session_state.df_funcoes = pd.DataFrame(DEFAULT_FUNCOES)
+        if "editor" in st.session_state:
+            del st.session_state["editor"]
         st.experimental_rerun()
 
 # ---------------------------
@@ -444,14 +478,14 @@ else:
     st.dataframe(hist.tail(10).drop(columns=[c for c in hist.columns if c.startswith("fun_")][:0]), use_container_width=True)
 
     person_vals = {}
-    for _, row in hist.iterrows():
+    for _, row_h in hist.iterrows():
         for c in hist.columns:
             if c.endswith("_participant"):
-                idx = c.split("_")[1]
-                name = row[c]
-                val_col = f"fun_{idx}_val"
+                idx_fun = c.split("_")[1]
+                name = row_h[c]
+                val_col = f"fun_{idx_fun}_val"
                 if pd.notna(name) and val_col in hist.columns:
-                    v = row.get(val_col, 0.0)
+                    v = row_h.get(val_col, 0.0)
                     try:
                         v = float(v)
                     except Exception:
@@ -478,13 +512,12 @@ hist_export = load_history()
 if hist_export.empty:
     st.info("Nenhum projeto salvo no histórico para exportar.")
 else:
-    # montar labels para escolha do projeto
     labels = []
     idx_map = {}
-    for idx, row in hist_export.iterrows():
-        ts = str(row.get("timestamp", ""))[:19]
-        nome = str(row.get("project_name", "") or "")
-        cli = str(row.get("cliente", "") or "")
+    for idx, row_he in hist_export.iterrows():
+        ts = str(row_he.get("timestamp", ""))[:19]
+        nome = str(row_he.get("project_name", "") or "")
+        cli = str(row_he.get("cliente", "") or "")
         label = f"{idx} - {ts} - {nome} - {cli}"
         labels.append(label)
         idx_map[label] = idx
@@ -497,34 +530,31 @@ else:
 
     if selected_label:
         selected_idx = idx_map[selected_label]
-        row = hist_export.loc[selected_idx]
+        row_sel = hist_export.loc[selected_idx]
 
-        # monta meta para o relatório
         meta_hist = {
-            "project_name": row.get("project_name", ""),
-            "date": row.get("timestamp", ""),
-            "faturamento": row.get("faturamento", 0.0),
-            "comissao_pct": row.get("comissao_pct", 0.0),
-            "data_faturamento": row.get("data_faturamento", ""),
-            "cliente": row.get("cliente", ""),
-            "cnpj": row.get("cnpj", ""),
-            "servico": row.get("servico", ""),
-            "forma_pagamento": row.get("forma_pagamento", ""),
-            "beneficio_cliente": row.get("beneficio_cliente", 0.0),
-            "percent_exito": row.get("percent_exito", 0.0),
+            "project_name": row_sel.get("project_name", ""),
+            "date": row_sel.get("timestamp", ""),
+            "faturamento": row_sel.get("faturamento", 0.0),
+            "comissao_pct": row_sel.get("comissao_pct", 0.0),
+            "data_faturamento": row_sel.get("data_faturamento", ""),
+            "cliente": row_sel.get("cliente", ""),
+            "cnpj": row_sel.get("cnpj", ""),
+            "servico": row_sel.get("servico", ""),
+            "forma_pagamento": row_sel.get("forma_pagamento", ""),
+            "beneficio_cliente": row_sel.get("beneficio_cliente", 0.0),
+            "percent_exito": row_sel.get("percent_exito", 0.0),
         }
 
-        # reconstrói df_result a partir das colunas fun_* gravadas no histórico
         participantes = []
         for col in hist_export.columns:
             if col.startswith("fun_") and col.endswith("_participant"):
-                idx_fun = col.split("_")[1]   # ex: fun_0_participant -> "0"
-                nome_part = row.get(f"fun_{idx_fun}_participant", "")
-                funcao = row.get(f"fun_{idx_fun}_name", "")
-                pct = row.get(f"fun_{idx_fun}_pct", 0.0)
-                val = row.get(f"fun_{idx_fun}_val", 0.0)
+                idx_fun = col.split("_")[1]
+                nome_part = row_sel.get(f"fun_{idx_fun}_participant", "")
+                funcao = row_sel.get(f"fun_{idx_fun}_name", "")
+                pct = row_sel.get(f"fun_{idx_fun}_pct", 0.0)
+                val = row_sel.get(f"fun_{idx_fun}_val", 0.0)
 
-                # ignora linhas vazias
                 if (pd.isna(nome_part) or str(nome_part).strip() == "") and \
                    (pd.isna(funcao) or str(funcao).strip() == ""):
                     continue
@@ -542,13 +572,12 @@ else:
 
         if participantes:
             df_result_hist = pd.DataFrame(participantes)
-            # input mínimo para a aba INPUT do Excel
             df_input_hist = df_result_hist[["Nome participante", "Função", "Grupo", "Existe", "Peso"]].copy()
 
             excel_hist_bytes = to_excel_bytes(
                 df_result_hist,
                 df_input_hist,
-                row.get("preset", ""),
+                row_sel.get("preset", ""),
                 meta_hist
             )
 
@@ -563,6 +592,3 @@ else:
 
 st.markdown("---")
 st.caption("App local — arquivos gerados na pasta do app (presets.json e history_projects.csv).")
-
-
-
