@@ -40,8 +40,9 @@ C_BLUE_LITE  = "#EBF0F8"
 # ─────────────────────────────────────────
 FIXED_FUNCOES = [
     ("taxa_reserva",    "Taxa de Reserva",  10.0),
-    ("comercial",       "Comercial",        10 / 5),
-    ("contrato",        "Contrato",         10 / 5),
+    ("comercial",       "Comercial",        10 / 3),
+    ("contrato",        "Contrato",         10 / 3),
+    ("analise_inicial", "Análise Inicial",  10 / 3),
     ("coordenacao",     "Coordenação",      10.0),
 ]
 
